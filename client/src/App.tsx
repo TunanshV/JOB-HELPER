@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { Bell, BriefcaseBusiness, ChevronRight, FileText, LayoutDashboard, LogOut, MapPin, Settings, Sparkles, Upload } from 'lucide-react';
 import { auth, missingFirebaseFields } from './utils/firebase';
 
@@ -39,6 +39,9 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState('');
+  const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [adminPanel, setAdminPanel] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const [jobs, setJobs] = useState<Job[]>(defaultJobs);
@@ -83,8 +86,23 @@ function App() {
     }
   }
 
+  async function handleAdminSignIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!auth) {
+      setAuthError(`Missing Firebase values: ${missingFirebaseFields.join(', ')}`);
+      return;
+    }
+    setAuthError('');
+    try {
+      await signInWithEmailAndPassword(auth, adminEmail.trim(), adminPassword);
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'auth/unknown';
+      setAuthError(`Admin sign-in failed (${code}). Check the Firebase Email/Password provider and credentials.`);
+    }
+  }
+
   if (authLoading) return <div className="auth-loading"><span className="brand-mark">cf</span><span>Preparing your workspace...</span></div>;
-  if (!user) return <SignInScreen onSignIn={handleGoogleSignIn} error={authError} configured={Boolean(auth)} missingFields={missingFirebaseFields} />;
+  if (!user) return <SignInScreen mode={loginMode} setMode={(mode) => { setLoginMode(mode); setAuthError(''); }} onSignIn={handleGoogleSignIn} onAdminSignIn={handleAdminSignIn} adminEmail={adminEmail} adminPassword={adminPassword} setAdminEmail={setAdminEmail} setAdminPassword={setAdminPassword} error={authError} configured={Boolean(auth)} missingFields={missingFirebaseFields} />;
 
   const displayName = user.displayName ?? user.email?.split('@')[0] ?? 'there';
   const initials = displayName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
@@ -157,13 +175,13 @@ function App() {
         </>} 
         </div>
       </main>
-      {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpload(false)} aria-label="Close">×</button><div className="modal-icon"><Upload size={20} /></div><p className="eyebrow">Resume workspace</p><h2>Keep your story current.</h2><p>Upload one PDF or DOCX resume. Your latest file replaces the previous version.</p><label className="drop-zone"><FileText size={24} /><strong>{selectedResume ? selectedResume.name : 'Drop your resume here'}</strong><span>{selectedResume ? `${(selectedResume.size / 1024 / 1024).toFixed(2)} MB selected` : 'or click to browse · PDF, DOCX up to 5MB'}</span><input type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={(event) => { const file = event.target.files?.[0] ?? null; setSelectedResume(file); setResumeMessage(''); }} /></label>{resumeMessage && <p className="upload-status">{resumeMessage}</p>}<button className="button primary full" onClick={uploadResume} disabled={resumeUploading}>{resumeUploading ? 'Uploading...' : 'Save resume'}</button></div></div>}
+      {showUpload && <div className="modal-backdrop" onClick={() => setShowUpload(false)}><div className="upload-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setShowUpload(false)} aria-label="Close">×</button><div className="modal-icon"><Upload size={20} /></div><p className="eyebrow">Resume workspace</p><h2>Keep your story current.</h2><p>Upload one PDF or DOCX resume. Your latest file replaces the previous version.</p><label className="drop-zone"><FileText size={24} /><strong>{selectedResume ? selectedResume.name : 'Drop your resume here'}</strong><span>{selectedResume ? `${(selectedResume.size / 1024 / 1024).toFixed(2)} MB selected` : 'or click to browse · PDF, DOCX up to 5MB'}</span><input type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" onChange={(event) => { const file = event.target.files?.[0] ?? null; setSelectedResume(file); setResumeMessage(''); }} /></label>{resumeMessage && <p className={`upload-status ${resumeMessage.includes('saved securely') ? 'success' : 'error'}`}>{resumeMessage}</p>}<button className="button primary full" onClick={uploadResume} disabled={resumeUploading}>{resumeUploading ? 'Uploading...' : 'Save resume'}</button></div></div>}
     </div>
   );
 }
 
-function SignInScreen({ onSignIn, error, configured, missingFields }: { onSignIn: () => void; error: string; configured: boolean; missingFields: string[] }) {
-  return <main className="auth-screen"><div className="auth-visual"><div className="auth-brand"><span className="brand-mark">cf</span><span>careerflow</span></div><div className="auth-quote"><span className="eyebrow">A calmer way forward</span><h1>Your next role deserves a little more intention.</h1><p>Bring your resume, goals, and momentum into one focused workspace.</p><div className="auth-signal"><Sparkles size={17} /><span>Personalized opportunities, reviewed by you.</span></div></div><div className="auth-footer">Built for thoughtful job searches.</div></div><section className="auth-panel"><div className="auth-panel-inner"><div className="auth-mobile-brand"><span className="brand-mark">cf</span><span>careerflow</span></div><span className="auth-kicker">Welcome to CareerFlow</span><h2>Make your next move count.</h2><p className="auth-copy">Sign in to save your profile, discover relevant opportunities, and keep every application in view.</p><button className="google-button" onClick={onSignIn}><span className="google-g">G</span><span>Continue with Google</span></button>{!configured && <p className="auth-error">{error || `Firebase setup is incomplete. Missing: ${missingFields.join(', ')}`}</p>}{configured && error && <p className="auth-error">{error}</p>}<p className="auth-legal">By continuing, you agree to keep your job search honest and under your control.</p></div></section></main>;
+function SignInScreen({ mode, setMode, onSignIn, onAdminSignIn, adminEmail, adminPassword, setAdminEmail, setAdminPassword, error, configured, missingFields }: { mode: 'user' | 'admin'; setMode: (mode: 'user' | 'admin') => void; onSignIn: () => void; onAdminSignIn: (event: React.FormEvent<HTMLFormElement>) => void; adminEmail: string; adminPassword: string; setAdminEmail: (value: string) => void; setAdminPassword: (value: string) => void; error: string; configured: boolean; missingFields: string[] }) {
+  return <main className="auth-screen"><div className="auth-visual"><div className="auth-brand"><span className="brand-mark">cf</span><span>careerflow</span></div><div className="auth-quote"><span className="eyebrow">A calmer way forward</span><h1>Your next role deserves a little more intention.</h1><p>Bring your resume, goals, and momentum into one focused workspace.</p><div className="auth-signal"><Sparkles size={17} /><span>Admin-published roles, reviewed by you.</span></div></div><div className="auth-footer">Built for thoughtful job searches.</div></div><section className="auth-panel"><div className="auth-panel-inner"><div className="auth-mobile-brand"><span className="brand-mark">cf</span><span>careerflow</span></div><span className="auth-kicker">Welcome to CareerFlow</span><div className="login-switcher"><button className={mode === 'user' ? 'selected' : ''} onClick={() => setMode('user')}>Job seeker</button><button className={mode === 'admin' ? 'selected' : ''} onClick={() => setMode('admin')}>Administrator</button></div><h2>{mode === 'user' ? 'Make your next move count.' : 'Manage the opportunity board.'}</h2><p className="auth-copy">{mode === 'user' ? 'Sign in with Google to view admin-published roles and apply on the original company website.' : 'Sign in with your owner account to publish roles for the CareerFlow community.'}</p>{mode === 'user' ? <button className="google-button" onClick={onSignIn}><span className="google-g">G</span><span>Continue with Google</span></button> : <form className="admin-login-form" onSubmit={onAdminSignIn}><label>Email address<input type="email" autoComplete="username" value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} placeholder="owner@example.com" required /></label><label>Password<input type="password" autoComplete="current-password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} placeholder="Your Firebase password" required /></label><button className="button primary full" type="submit">Sign in as administrator</button></form>}{!configured && <p className="auth-error">{error || `Firebase setup is incomplete. Missing: ${missingFields.join(', ')}`}</p>}{configured && error && <p className="auth-error">{error}</p>}<p className="auth-legal">{mode === 'admin' ? 'Administrator access is verified by Firebase Email/Password authentication.' : 'Applications open on the original employer website.'}</p></div></section></main>;
 }
 
 type AdminForm = { role: string; company: string; experience: string; location: string; employmentType: string; skills: string; requirements: string; description: string; applicationUrl: string };

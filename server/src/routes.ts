@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { config } from './config.js';
-import { requireAdmin, requireAuth, type AuthenticatedRequest } from './middleware/auth.js';
+import { requireAdmin, requireAuth, requireRegularUser, type AuthenticatedRequest } from './middleware/auth.js';
 import { Job, type JobDocument } from './models/Job.js';
 import { Resume, type ResumeDocument } from './models/Resume.js';
 
@@ -34,7 +34,7 @@ router.post('/admin/jobs', requireAdmin, async (request: AuthenticatedRequest, r
   else memoryJobs.unshift(job);
   response.status(201).json({ job });
 });
-router.post('/resumes', requireAuth, resumeUpload.single('resume'), async (request: AuthenticatedRequest, response) => {
+router.post('/resumes', requireRegularUser, resumeUpload.single('resume'), async (request: AuthenticatedRequest, response) => {
   if (!request.file) {
     response.status(400).json({ error: 'Choose a PDF or DOCX resume up to 5 MB.' });
     return;

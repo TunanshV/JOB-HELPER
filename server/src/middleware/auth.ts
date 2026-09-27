@@ -7,7 +7,7 @@ export type AuthenticatedRequest = Request & { userId?: string; userEmail?: stri
 export async function requireAuth(request: AuthenticatedRequest, response: Response, next: NextFunction) {
   const auth = firebaseAuth();
   if (!auth) {
-    response.status(503).json({ error: 'Firebase Admin is not configured yet.' });
+    response.status(503).json({ error: 'Server Firebase authentication is not configured. Add Firebase Admin SDK credentials to server/.env.' });
     return;
   }
   const header = request.headers.authorization;
@@ -30,6 +30,16 @@ export async function requireAdmin(request: AuthenticatedRequest, response: Resp
   await requireAuth(request, response, () => {
     if (!request.isAdmin) {
       response.status(403).json({ error: 'Administrator access is required.' });
+      return;
+    }
+    next();
+  });
+}
+
+export async function requireRegularUser(request: AuthenticatedRequest, response: Response, next: NextFunction) {
+  await requireAuth(request, response, () => {
+    if (request.isAdmin) {
+      response.status(403).json({ error: 'Resume features are available only to job seekers.' });
       return;
     }
     next();
